@@ -1,0 +1,74 @@
+#!/bin/bash
+#name:gitreclone
+
+##version
+gitreclone_imported=1 
+
+
+function gitreclone_copy()
+{
+  local tempgitdir=$2
+  local gitdir=$1
+  if  [ -d $gitdir/.git ];then
+   if [ $(ls $gitdir/.git/objects/pack/*|wc -l ) -gt 0 ];then
+   for i in $gitdir/.git/objects/pack/*;
+   do
+      mkdir -p $tempgitdir
+      if [ ! -d $tempgitdir/.git ];then
+        pushd $tempgitdir
+        git init 
+        popd
+      fi
+
+      cat $i|git --git-dir $tempgitdir/.git  unpack-objects
+   done
+
+
+  fi
+  fi
+
+ 
+}
+
+function gitreclone_handleint()
+{
+  gitreclone_copy $1 $2
+  kill %1
+  trap - SIGINT
+}
+
+
+gitreclone()
+{
+  set -x
+  local gitdir=$(pwd)/$(basename $1)
+  gitdir=$(echo $gitdir|sed 's/\.git//')
+  local basegitdirname=$(basename $gitdir)
+  local tempgitdir="/tmp/gitreclone/$basegitdirname"
+  
+  local param=
+  if [ -d $tempgitdir/.git ];then
+    param="--reference $tempgitdir"
+  fi
+  
+   git clone "$@" $param & 
+
+   trap  "gitreclone_handleint $gitdir $tempgitdir" INT
+  
+   while jobs |grep Running -q ;
+   do
+    if sleep 100 
+    then
+     gitreclone_copy $gitdir $tempgitdir
+     else 
+      gitreclone_handleint $gitdir $tempgitdir ;break
+    fi
+   done
+# jobs |grep Running -q || test -d $gitdir && git --git-dir=$gitdir repack   
+}
+
+
+if [[ $# != 0 ]];then
+ gitreclone "$@"
+fi
+
