@@ -25,11 +25,6 @@ from the pack! Use all those objects, create a pseudo repo.
 If you want to clone again the same url, add pseudo repo as a reference(alternative). So, git never asks the sever
 for objects that are copied already.
 
-----
-
-Well, enough theory,This script performs everything neatly. However, it seems, git ignores the --reference parameter.
-Honestly, I could not get any significance gain in terms of network/speed. So Please check and contribute to this little hack. 
-
 
 
 
