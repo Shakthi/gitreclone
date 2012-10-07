@@ -120,7 +120,7 @@ function gitreclone_copy()
 function gitreclone_handleint()
 {
   gitreclone_copy $1 $2
-  test -d $1 && git --git-dir=$gitdir repack -a 
+  test -d $1/.git/config && git --git-dir=$gitdir repack -a 
   kill %1
   trap - SIGINT
 }
@@ -137,7 +137,7 @@ gitreclone()
   local gitdir=$(pwd)/$(basename $1)
   gitdir=$(echo $gitdir|sed 's/\.git//')
   local basegitdirname=$(basename $gitdir)
-  local tempgitdir="/tmp/gitreclone/$basegitdirname"
+  local tempgitdir="/var/tmp/gitreclone/$basegitdirname"
   
   local param=
   if [ -d $tempgitdir/.git ];then 
@@ -164,7 +164,7 @@ gitreclone()
     fi
    done
     
-    test -d $gitdir && git --git-dir=$gitdir repack -a
+    test -d $gitdir/.git/config && git --git-dir=$gitdir repack -a
 }
 
 
