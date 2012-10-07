@@ -4,6 +4,94 @@
 ##version
 gitreclone_imported=1 
 
+log()
+{
+echo "gitreclone:" $* >/dev/stderr
+}
+
+gitloospack()
+{
+    if [[ $1 == start ]];then
+        for i in .git/objects/??/*;do
+            name=$(echo $i|sed s+.git/objects/++ |sed s+/++ )
+            echo creating $name
+            echo $name >rebuild.$name
+        done
+    fi
+
+for i in rebuild.*;do
+test -f $i ||continue 
+echo checking $i
+sha=$(cat $i)
+otype=$(git cat-file -t $sha )
+
+if [[ $otype == commit ]];then
+trees=$(git cat-file -p $sha|grep ^tree|sed 's+tree ++' )
+parents=$(git cat-file -p $sha|grep ^parent|sed 's+parent ++' )
+for k in `echo $trees $parents` ;do
+if test -f rebuild.$k ;then
+rm rebuild.$k
+echo deleted rebuild.$k
+fi
+done 
+
+fi
+
+
+if [[ $otype == tree ]];then
+(IFS=$'\n'
+for k in $(git cat-file -p $sha);do
+
+delete=$(echo $k|tr -s ' ' |tr "\t" ' ' |cut -f 3 -d ' ' )
+if [[ -f rebuild.$delete ]];then
+echo delted rebuild.$delete
+rm rebuild.$delete
+fi
+done
+)
+fi
+
+done
+}
+
+gitlesspack()
+{
+
+gitloospack start
+
+log "Searching for brocken ref"
+
+mkdir -p .git/refs/temp
+
+log "Creating temp ref"
+
+for i in rebuild.* ;do
+
+cp $i .git/refs/temp
+done
+
+
+log "Deleting dead ref"
+
+git for-each-ref --format='%(refname)' | while read ref; do git rev-list --objects $ref >/dev/null 2>/dev/null || echo "$ref"; done>DEADREF
+
+for i in $(cat DEADREF);do
+echo rm .git/$i
+rm .git/$i
+done
+
+#rm -r .git/refs/temp
+rm DEADREF
+
+for i in rebuild.* ;do
+
+rm $i
+done
+
+log "Built $(ls -l .git/refs/temp| wc -l) refrences"
+
+}
+
 
 function gitreclone_copy()
 {
@@ -32,6 +120,7 @@ function gitreclone_copy()
 function gitreclone_handleint()
 {
   gitreclone_copy $1 $2
+  test -d $1 && git --git-dir=$gitdir repack -a 
   kill %1
   trap - SIGINT
 }
@@ -39,9 +128,9 @@ function gitreclone_handleint()
 
 gitreclone()
 {
-set -x #debug: remove once done.
+#set -x #debug: remove once done.
 
-#gitdir: directory where repo going populate 
+#gitdir: directory where the repo going populate 
 #tempgitdir: temprary directory/repo where repo objects are saved to restart the cloning 
 
 
@@ -52,10 +141,16 @@ set -x #debug: remove once done.
   
   local param=
   if [ -d $tempgitdir/.git ];then 
+    log "Found saved repo $tempgitdir/"
     param="--reference $tempgitdir" #we have a saved repo.
-  fi
-  
-    git clone "$@" $param & #start cloning in backgound
+
+    pushd $tempgitdir >/dev/null
+    log "attempting to build reference from loose objects"
+    gitlesspack
+    popd >/dev/null
+  fi 
+    log git clone "$@" $param 
+    git clone "$@" $param  & #start cloning in backgound
 
     trap  "gitreclone_handleint $gitdir $tempgitdir" INT #in case you want stop process, press ctrl-C
   
@@ -68,7 +163,8 @@ set -x #debug: remove once done.
     gitreclone_handleint $gitdir $tempgitdir ;break #we got interrupt copy and then quit
     fi
    done
-# jobs |grep Running -q || test -d $gitdir && git --git-dir=$gitdir repack   
+    
+    test -d $gitdir && git --git-dir=$gitdir repack -a
 }
 
 
